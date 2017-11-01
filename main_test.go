@@ -370,6 +370,113 @@ var _ = Describe("Main", func() {
 			tkj             tokenJSON
 		)
 
+		Context("Apps are filtered", func() {
+			BeforeEach(func() {
+				var apps []cfclient.App
+				spaceGuid := "11111111-1111-1111-9999-111111111111"
+				orgGuid := "11111111-1111-1111-0000-111111111111"
+				apps = []cfclient.App{
+					{Name: "app1", Guid: "11111111-1111-1111-1111-111111111111", SpaceURL: "/v2/spaces/" + spaceGuid},
+					{Name: "app2", Guid: "22222222-2222-2222-2222-222222222222", SpaceURL: "/v2/spaces/" + spaceGuid},
+					{Name: "app3", Guid: "33333333-3333-3333-3333-333333333333", SpaceURL: "/v2/spaces/" + spaceGuid},
+				}
+
+				apiServer.AppendHandlers(
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v2/apps"),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, testAppResponse(apps)),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v2/spaces/"+spaceGuid),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, testNamedSpaceResource(spaceGuid, orgGuid, "space1")),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v2/organizations/"+orgGuid),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, testOrgResource(orgGuid)),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v2/spaces/"+spaceGuid),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, testNamedSpaceResource(spaceGuid, orgGuid, "space1")),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v2/organizations/"+orgGuid),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, testOrgResource(orgGuid)),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v2/spaces/"+spaceGuid),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, testNamedSpaceResource(spaceGuid, orgGuid, "space1")),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v2/organizations/"+orgGuid),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, testOrgResource(orgGuid)),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v2/apps"),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, testAppResponse(apps)),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v2/spaces/"+spaceGuid),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, testNamedSpaceResource(spaceGuid, orgGuid, "space1")),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v2/organizations/"+orgGuid),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, testOrgResource(orgGuid)),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v2/spaces/"+spaceGuid),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, testNamedSpaceResource(spaceGuid, orgGuid, "space1")),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v2/organizations/"+orgGuid),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, testOrgResource(orgGuid)),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v2/spaces/"+spaceGuid),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, testNamedSpaceResource(spaceGuid, orgGuid, "space1")),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v2/organizations/"+orgGuid),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, testOrgResource(orgGuid)),
+					),
+				)
+			})
+
+			It("all apps should be shown if no filter", func() {
+				foundApps, _ := metricProc.getApps()
+				Expect(len(foundApps)).To(Equal(3))
+			})
+
+			It("no apps should be shown if not in bad filter", func() {
+				*appFilter = "notfound.fake"
+				foundApps, _ := metricProc.getApps()
+				Expect(len(foundApps)).To(Equal(0))
+			})
+
+			It("one app should be shown if only one in filter", func() {
+				*appFilter = "space1.app1"
+				foundApps, _ := metricProc.getApps()
+				Expect(len(foundApps)).To(Equal(1))
+				Expect(foundApps[0].Name).To(Equal("app1"))
+			})
+
+			It("two app should be shown if two in filter", func() {
+				*appFilter = "space1.app1,space1.app2"
+				foundApps, _ := metricProc.getApps()
+				Expect(len(foundApps)).To(Equal(2))
+				Expect(foundApps[0].Name).To(Equal("app1"))
+				Expect(foundApps[1].Name).To(Equal("app2"))
+			})
+
+			It("shows all apps if all in filter", func() {
+				*appFilter = "space1.app1,space1.app2,space1.app3"
+				foundApps, _ := metricProc.getApps()
+				Expect(len(foundApps)).To(Equal(3))
+				Expect(foundApps[0].Name).To(Equal("app1"))
+				Expect(foundApps[1].Name).To(Equal("app2"))
+				Expect(foundApps[2].Name).To(Equal("app3"))
+			})
+		})
+
 		Context("refreshToken has expired", func() {
 			BeforeEach(func() {
 				teapot = `{"status":"teapot"}`
@@ -513,6 +620,13 @@ func testSpaceResource(spaceGuid, orgGuid string) cfclient.SpaceResource {
 	return cfclient.SpaceResource{
 		Meta:   cfclient.Meta{Guid: spaceGuid},
 		Entity: cfclient.Space{OrgURL: "/v2/organizations/" + orgGuid},
+	}
+}
+
+func testNamedSpaceResource(spaceGuid, orgGuid, name string) cfclient.SpaceResource {
+	return cfclient.SpaceResource{
+		Meta:   cfclient.Meta{Guid: spaceGuid},
+		Entity: cfclient.Space{Name: name, OrgURL: "/v2/organizations/" + orgGuid},
 	}
 }
 

@@ -28,6 +28,7 @@ var (
 	debug             = kingpin.Flag("debug", "Enable debug mode. This disables forwarding to statsd and prints to stdout").Default("false").OverrideDefaultFromEnvar("DEBUG").Bool()
 	updateFrequency   = kingpin.Flag("update-frequency", "The time in seconds, that takes between each apps update call.").Default("300").OverrideDefaultFromEnvar("UPDATE_FREQUENCY").Int64()
 	metricTemplate    = kingpin.Flag("metric-template", "The template that will form a new metric namespace.").Default("{{.Space}}.{{.App}}.{{.Instance}}.{{.Metric}}").OverrideDefaultFromEnvar("METRIC_TEMPLATE").String()
+	appFilter         = kingpin.Flag("app-filter", "(Optional) Only forward metrics from named apps.").Default("").OverrideDefaultFromEnvar("APP_FILTER").String()
 )
 
 type metricProcessor struct {
@@ -194,15 +195,32 @@ func (m *metricProcessor) startStream(app cfclient.App) chan cfclient.App {
 
 func (m *metricProcessor) getApps() ([]cfclient.App, error) {
 	q := url.Values{}
-	apps, err := m.cfClient.ListAppsByQuery(q)
+	queried_apps, err := m.cfClient.ListAppsByQuery(q)
+
+	var apps []cfclient.App
+	var appsToInclude = strings.Split(*appFilter, ",")
+
 	if err != nil {
 		return nil, err
 	}
-	for _, app := range apps {
+	for _, app := range queried_apps {
 		if err = updateAppSpaceData(&app); err != nil {
 			return nil, err
 		}
+
+		if *appFilter != "" {
+			currentSpaceAndApp := fmt.Sprintf("%s.%s", app.SpaceData.Entity.Name, app.Name)
+			for _, appIncludeName := range appsToInclude {
+				if currentSpaceAndApp == appIncludeName {
+					apps = append(apps, app)
+					break
+				}
+			}
+		} else {
+			apps = append(apps, app)
+		}
 	}
+
 	return apps, nil
 }
 
